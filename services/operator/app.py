@@ -142,15 +142,19 @@ if similar:
 else:
     st.info("Похожих закрытых заявок не найдено. Черновик будет общим.")
 
-proposed_reply = build_draft(ticket, reference)
 st.subheader("Черновик ответа")
+review_note = st.text_input(
+    "Примечание специалиста (необязательно)",
+    key=f"review_note_{selected_id}",
+    help="Указание учитывается при формировании черновика ответа.",
+)
+proposed_reply = build_draft(ticket, reference, review_note)
 with st.form(key=f"review_{selected_id}_{reference['ticket_id'] if reference else 'none'}"):
     edited_reply = st.text_area(
         "Текст для проверки специалистом",
         value=proposed_reply,
         height=175,
     )
-    review_note = st.text_input("Примечание специалиста (необязательно)")
     approved = st.form_submit_button("Согласовать черновик", type="primary")
     rejected = st.form_submit_button("Отклонить черновик")
 
@@ -188,3 +192,4 @@ except Exception as error:
 if reviews:
     st.subheader("История проверки этой заявки")
     st.dataframe(reviews, use_container_width=True, hide_index=True)
+

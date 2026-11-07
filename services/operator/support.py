@@ -36,17 +36,39 @@ def rank_candidates(
     return ranked[:limit]
 
 
-def build_draft(current: Mapping, reference: Mapping | None) -> str:
+def build_draft(
+    current: Mapping,
+    reference: Mapping | None,
+    specialist_note: str = "",
+) -> str:
     """Составить текст рекомендации без утверждения, что заявка уже решена."""
     title = str(current["title"]).strip()
+    service = str(current.get("service", "службы поддержки")).strip()
+    issue = title.lower()
+    service_actions = {
+        "Корпоративная почта": "проверим настройки почтового ящика и состояние почтового сервиса",
+        "Удалённый доступ": "проверим подключение, сертификат и параметры удалённого доступа",
+        "Учётные записи": "проверим состояние учётной записи и необходимые права доступа",
+        "Рабочее место": "проверим оборудование и установленное программное обеспечение",
+        "Корпоративные системы": "проверим доступность системы и журналы работы приложения",
+    }
+    action = service_actions.get(service, "проведём диагностику сервиса")
     if reference is None:
-        return (
+        draft = (
             f"Здравствуйте! Получили ваше обращение «{title}». "
-            "Уточним обстоятельства и сообщим о дальнейших действиях после проверки."
+            f"По вопросу «{issue}» {action}. "
+            "Сообщим результат после проверки."
         )
-    past_resolution = str(reference["resolution_text"]).strip()
-    return (
-        f"Здравствуйте! Получили ваше обращение «{title}». "
-        f"В похожем ранее решённом случае применялось следующее решение: {past_resolution} "
-        "Проверим, подходит ли оно для вашего обращения, и сообщим результат."
-    )
+    else:
+        past_resolution = str(reference["resolution_text"]).strip()
+        draft = (
+            f"Здравствуйте! Получили ваше обращение «{title}». "
+            f"В похожем ранее решённом случае применялось следующее решение: {past_resolution} "
+            f"Для обращения «{issue}» {action}. "
+            "Проверим, подходит ли оно для вашего обращения, и сообщим результат."
+        )
+    note = specialist_note.strip()
+    if note:
+        draft += f" Учтём дополнительное указание специалиста: {note}."
+    return draft
+

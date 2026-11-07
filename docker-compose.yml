@@ -72,6 +72,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-support}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
       NEURAL_MODEL_PATH: /models/neural_ranker.npz
+      REPLY_MODEL_URL: http://reply-model:11434/api/chat
+      REPLY_MODEL_NAME: qwen2.5:3b
     depends_on:
       db:
         condition: service_healthy
@@ -81,6 +83,13 @@ services:
       - ./artifacts/neural_model:/models
     profiles: ["operator"]
 
+  reply-model:
+    image: ollama/ollama:latest
+    volumes:
+      - reply_model_data:/root/.ollama
+    profiles: ["operator"]
+
 volumes:
   postgres_data:
   source_data:
+  reply_model_data:

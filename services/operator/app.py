@@ -13,6 +13,7 @@ from neural import NeuralRanker
 from repository import DatabaseSettings, OperatorRepository
 from support import build_draft, rank_candidates
 from feedback_model import FeedbackReplyModel, MIN_EXAMPLES
+from reply_model import ReplyModel, ReplyModelError
 
 
 logging.basicConfig(
@@ -20,6 +21,11 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 logger = logging.getLogger("support-operator")
+
+
+@st.cache_data(show_spinner=False)
+def revise_reply(title: str, description: str, draft: str, note: str) -> str:
+    return ReplyModel().revise(title, description, draft, note)
 
 st.set_page_config(page_title="Рабочее место специалиста СТП", page_icon="🛠️", layout="wide")
 
@@ -160,17 +166,26 @@ if st.session_state.pop(f"saved_review_{selected_id}", False):
     st.success("Замечание сохранено, черновик обновлён. Ответ заявителю не отправлен.")
 review_note = st.text_input(
     "Замечание специалиста при отклонении",
-    value=feedback,
-    key=f"review_note_{selected_id}",
+    value="",
+    key=f"review_note_{selected_id}_{latest_review['review_id'] if latest_review else 0}",
     help="Указание учитывается при формировании черновика ответа.",
 )
 learned_reply, learned_match = feedback_model.recommend(ticket["title"], review_note or feedback)
+base_reply = build_draft(ticket, reference)
 if feedback_model.ready:
     st.caption(f"Модель обратной связи обучена на {len(feedback_model.examples)} согласованных ответах.")
-    proposed_reply = learned_reply or build_draft(ticket, reference, review_note or feedback)
 else:
     st.caption(f"Для обучения модели обратной связи нужно не менее {MIN_EXAMPLES} согласованных ответов.")
-    proposed_reply = build_draft(ticket, reference, review_note or feedback)
+proposed_reply = learned_reply if learned_reply and learned_match >= 0.55 else base_reply
+active_note = (review_note or feedback).strip()
+if active_note:
+    with st.spinner("Готовим новый ответ по замечанию специалиста…"):
+        try:
+            proposed_reply = revise_reply(ticket["title"], ticket["description"], base_reply, active_note)
+        except ReplyModelError as error:
+            logger.warning("operator_reply_model_unavailable ticket_id=%s", selected_id)
+            st.warning("Не удалось переработать черновик по замечанию. Проверьте локальную языковую модель или отредактируйте текст вручную.")
+            proposed_reply = base_reply
 with st.form(key=f"review_{selected_id}_{reference['ticket_id'] if reference else 'none'}_{latest_review['review_id'] if latest_review else 0}"):
     edited_reply = st.text_area(
         "Текст для проверки специалистом",
@@ -194,7 +209,7 @@ if approved or rejected:
             proposed_reply=proposed_reply,
             edited_reply=edited_reply,
             decision=decision,
-            review_note=review_note,
+            review_note=review_note or feedback,
         )
     except ValueError as error:
         st.warning(str(error))

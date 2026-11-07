@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -186,7 +187,8 @@ if active_note:
             logger.warning("operator_reply_model_unavailable ticket_id=%s", selected_id)
             st.warning("Не удалось переработать черновик по замечанию. Проверьте локальную языковую модель или отредактируйте текст вручную.")
             proposed_reply = base_reply
-with st.form(key=f"review_{selected_id}_{reference['ticket_id'] if reference else 'none'}_{latest_review['review_id'] if latest_review else 0}"):
+draft_version = hashlib.sha256(proposed_reply.encode("utf-8")).hexdigest()[:12]
+with st.form(key=f"review_{selected_id}_{reference['ticket_id'] if reference else 'none'}_{latest_review['review_id'] if latest_review else 0}_{draft_version}"):
     edited_reply = st.text_area(
         "Текст для проверки специалистом",
         value=proposed_reply,

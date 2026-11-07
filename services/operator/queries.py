@@ -64,3 +64,12 @@ class OperatorSQL:
         ORDER BY reviewed_at DESC, review_id DESC
         LIMIT 10
     """
+
+    FEEDBACK_EXAMPLES = """
+        SELECT r.ticket_id, r.review_note, r.edited_reply, t.title
+        FROM demo.reply_reviews AS r
+        JOIN silver.tickets AS t ON t.ticket_id = r.ticket_id
+        WHERE r.decision = 'approved'
+          AND NULLIF(BTRIM(r.edited_reply), '') IS NOT NULL
+        ORDER BY r.reviewed_at, r.review_id
+    """

@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py repository.py queries.py support.py neural.py neural_data.py train_neural.py ./
+COPY app.py repository.py queries.py support.py neural.py neural_data.py train_neural.py feedback_model.py ./
 COPY test_support.py test_neural.py ./
 
 EXPOSE 8502

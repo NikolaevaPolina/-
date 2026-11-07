@@ -12,6 +12,7 @@ import streamlit as st
 from neural import NeuralRanker
 from repository import DatabaseSettings, OperatorRepository
 from support import build_draft, rank_candidates
+from feedback_model import FeedbackReplyModel, MIN_EXAMPLES
 
 
 logging.basicConfig(
@@ -150,14 +151,26 @@ except Exception as error:
     previous_reviews = []
 latest_review = previous_reviews[0] if previous_reviews else None
 feedback = latest_review["review_note"] if latest_review and latest_review["decision"] == "rejected" else ""
+try:
+    feedback_model = FeedbackReplyModel(repo.feedback_examples())
+except Exception as error:
+    logger.error("operator_feedback_model_failed kind=%s", type(error).__name__)
+    feedback_model = FeedbackReplyModel([])
 if st.session_state.pop(f"saved_review_{selected_id}", False):
     st.success("Замечание сохранено, черновик обновлён. Ответ заявителю не отправлен.")
 review_note = st.text_input(
     "Замечание специалиста при отклонении",
+    value=feedback,
     key=f"review_note_{selected_id}",
     help="Указание учитывается при формировании черновика ответа.",
 )
-proposed_reply = build_draft(ticket, reference, review_note or feedback)
+learned_reply, learned_match = feedback_model.recommend(ticket["title"], review_note or feedback)
+if feedback_model.ready:
+    st.caption(f"Модель обратной связи обучена на {len(feedback_model.examples)} согласованных ответах.")
+    proposed_reply = learned_reply or build_draft(ticket, reference, review_note or feedback)
+else:
+    st.caption(f"Для обучения модели обратной связи нужно не менее {MIN_EXAMPLES} согласованных ответов.")
+    proposed_reply = build_draft(ticket, reference, review_note or feedback)
 with st.form(key=f"review_{selected_id}_{reference['ticket_id'] if reference else 'none'}_{latest_review['review_id'] if latest_review else 0}"):
     edited_reply = st.text_area(
         "Текст для проверки специалистом",
@@ -172,6 +185,8 @@ if approved or rejected:
     try:
         if rejected and not review_note.strip():
             raise ValueError("Для отклонения укажите, что следует изменить")
+        if approved and not edited_reply.strip():
+            raise ValueError("Для обучения модели введите текст ответа")
         review_id = repo.save_review(
             ticket_id=selected_id,
             source_ticket_id=int(reference["ticket_id"]) if reference else None,

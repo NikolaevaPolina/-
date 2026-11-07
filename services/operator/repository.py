@@ -116,3 +116,7 @@ class OperatorRepository:
     def reviews(self, ticket_id: int) -> list[dict[str, Any]]:
         with self._connect() as connection:
             return connection.execute(OperatorSQL.LIST_REVIEWS, (ticket_id,)).fetchall()
+
+    def feedback_examples(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            return connection.execute(OperatorSQL.FEEDBACK_EXAMPLES).fetchall()

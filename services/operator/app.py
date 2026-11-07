@@ -143,13 +143,22 @@ else:
     st.info("Похожих закрытых заявок не найдено. Черновик будет общим.")
 
 st.subheader("Черновик ответа")
+try:
+    previous_reviews = repo.reviews(selected_id)
+except Exception as error:
+    logger.error("operator_history_failed ticket_id=%s kind=%s", selected_id, type(error).__name__)
+    previous_reviews = []
+latest_review = previous_reviews[0] if previous_reviews else None
+feedback = latest_review["review_note"] if latest_review and latest_review["decision"] == "rejected" else ""
+if st.session_state.pop(f"saved_review_{selected_id}", False):
+    st.success("Замечание сохранено, черновик обновлён. Ответ заявителю не отправлен.")
 review_note = st.text_input(
-    "Примечание специалиста (необязательно)",
+    "Замечание специалиста при отклонении",
     key=f"review_note_{selected_id}",
     help="Указание учитывается при формировании черновика ответа.",
 )
-proposed_reply = build_draft(ticket, reference, review_note)
-with st.form(key=f"review_{selected_id}_{reference['ticket_id'] if reference else 'none'}"):
+proposed_reply = build_draft(ticket, reference, review_note or feedback)
+with st.form(key=f"review_{selected_id}_{reference['ticket_id'] if reference else 'none'}_{latest_review['review_id'] if latest_review else 0}"):
     edited_reply = st.text_area(
         "Текст для проверки специалистом",
         value=proposed_reply,
@@ -161,6 +170,8 @@ with st.form(key=f"review_{selected_id}_{reference['ticket_id'] if reference els
 if approved or rejected:
     decision = "approved" if approved else "rejected"
     try:
+        if rejected and not review_note.strip():
+            raise ValueError("Для отклонения укажите, что следует изменить")
         review_id = repo.save_review(
             ticket_id=selected_id,
             source_ticket_id=int(reference["ticket_id"]) if reference else None,
@@ -170,8 +181,8 @@ if approved or rejected:
             decision=decision,
             review_note=review_note,
         )
-    except ValueError:
-        st.warning("Для согласования введите непустой текст ответа.")
+    except ValueError as error:
+        st.warning(str(error))
     except Exception as error:
         logger.error("operator_review_failed ticket_id=%s kind=%s", selected_id, type(error).__name__)
         st.error("Не удалось сохранить решение специалиста.")
@@ -182,14 +193,9 @@ if approved or rejected:
             review_id,
             decision,
         )
-        st.success("Решение записано. Ответ заявителю не отправлен.")
+        st.session_state[f"saved_review_{selected_id}"] = True
+        st.rerun()
 
-try:
-    reviews = repo.reviews(selected_id)
-except Exception as error:
-    logger.error("operator_history_failed ticket_id=%s kind=%s", selected_id, type(error).__name__)
-    reviews = []
-if reviews:
+if previous_reviews:
     st.subheader("История проверки этой заявки")
-    st.dataframe(reviews, use_container_width=True, hide_index=True)
-
+    st.dataframe(previous_reviews, use_container_width=True, hide_index=True)

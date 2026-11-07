@@ -16,12 +16,16 @@ class SupportTests(unittest.TestCase):
         self.assertEqual(ranked[0]["ticket_id"], 2)
         self.assertGreater(ranked[0]["similarity"], ranked[1]["similarity"])
 
-    def test_draft_uses_past_tense_as_reference(self):
-        current = {"title": "Не отправляется письмо"}
+    def test_rejection_changes_customer_reply_without_exposing_reference(self):
+        current = {"title": "Не включается компьютер"}
         reference = {"resolution_text": "Работа сервиса восстановлена."}
-        draft = build_draft(current, reference)
-        self.assertIn("в похожем ранее решённом случае", draft.lower())
-        self.assertIn("Проверим, подходит ли оно", draft)
+        initial = build_draft(current, reference)
+        revised = build_draft(current, reference, "Не говори, что нашли решение. Проблема взята в работу.")
+        self.assertIn("Проверим питание", initial)
+        self.assertIn("принято в работу", revised)
+        self.assertNotIn("Проверим питание", revised)
+        self.assertNotIn("ранее решённом", revised)
+        self.assertNotIn("Работа сервиса восстановлена", revised)
 
 
 if __name__ == "__main__":

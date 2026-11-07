@@ -1,0 +1,4 @@
+﻿target_tickets,baseline_tickets,repeats,batch_size,incremental_median_seconds,full_median_seconds,speedup,incremental_gold_median_seconds,full_gold_median_seconds
+40400,40400,3,100,0.529,16.459,31.11,0.218,0.256
+45000,45000,3,100,0.566,19.524,34.49,0.262,0.241
+50000,50000,3,100,0.545,22.081,40.52,0.259,0.272

@@ -1,0 +1,86 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-support_dw}
+      POSTGRES_USER: ${POSTGRES_USER:-support}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-support} -d ${POSTGRES_DB:-support_dw}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+
+  mock-api:
+    build: ./services/api
+    environment:
+      SOURCE_DB_PATH: /data/source.db
+      INITIAL_TICKETS: ${INITIAL_TICKETS:-1000}
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - source_data:/data
+
+  etl:
+    build: ./services/etl
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-support_dw}
+      POSTGRES_USER: ${POSTGRES_USER:-support}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
+      SOURCE_API_URL: ${SOURCE_API_URL:-http://mock-api:8000}
+    depends_on:
+      db:
+        condition: service_healthy
+      mock-api:
+        condition: service_healthy
+    volumes:
+      - ./artifacts:/artifacts
+    profiles: ["tools"]
+
+  dashboard:
+    build: ./services/dashboard
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-support_dw}
+      POSTGRES_USER: ${POSTGRES_USER:-support}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8501:8501"
+
+  operator:
+    build: ./services/operator
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-support_dw}
+      POSTGRES_USER: ${POSTGRES_USER:-support}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
+      NEURAL_MODEL_PATH: /models/neural_ranker.npz
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8502:8502"
+    volumes:
+      - ./artifacts/neural_model:/models
+    profiles: ["operator"]
+
+volumes:
+  postgres_data:
+  source_data:

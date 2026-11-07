@@ -87,6 +87,7 @@ services:
     image: ollama/ollama:latest
     volumes:
       - reply_model_data:/root/.ollama
+      - ./artifacts/reply_model:/weights:ro
     profiles: ["operator"]
 
 volumes:
